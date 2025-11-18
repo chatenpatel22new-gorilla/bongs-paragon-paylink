@@ -15,6 +15,12 @@ const PORT = process.env.PORT || 3000;
 // ───────────────────────────────────────────────
 app.use(bodyParser.json({ limit: '2mb' }));
 
+// Log every request so we can see activity in Railway logs
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // ───────────────────────────────────────────────
 // ENV VARS (you set these in Railway dashboard)
 // ───────────────────────────────────────────────
@@ -149,14 +155,30 @@ function buildParagonRequestFromShopify(order) {
 }
 
 // ───────────────────────────────────────────────
+// Health + debug routes
+// ───────────────────────────────────────────────
+app.get('/ping', (req, res) => {
+  res.json({ ok: true });
+});
+
+// Root just to confirm service
+app.get('/', (req, res) => {
+  res.send('Bongs Paragon paylink service running.');
+});
+
+// ───────────────────────────────────────────────
 // Shopify Webhook Route
 // ───────────────────────────────────────────────
 app.post('/shopify-order', async (req, res) => {
+  console.log('Received /shopify-order webhook');
+
   try {
     const order = req.body;
+    console.log('Shopify body keys:', Object.keys(order || {}));
 
     const built = buildParagonRequestFromShopify(order);
     if (!built) {
+      console.log('Not a card payment, skipping.');
       return res.status(200).json({ ok: true, skipped: 'not card payment' });
     }
 
@@ -166,6 +188,8 @@ app.post('/shopify-order', async (req, res) => {
       authHeader,
       parsed,
     } = built;
+
+    console.log('Sending request to Paragon:', requestUrl);
 
     const paragonResp = await axios.post(
       requestUrl,
@@ -181,6 +205,7 @@ app.post('/shopify-order', async (req, res) => {
 
     const pData = paragonResp.data || {};
     const paymentLink = pData.redirectUrl;
+    console.log('Paragon response:', pData);
 
     if (parsed.customerEmail && paymentLink) {
       const html = `
@@ -198,12 +223,16 @@ app.post('/shopify-order', async (req, res) => {
         <p>Cheers,<br>Gorilla Bongs</p>
       `;
 
+      console.log('Sending email to', parsed.customerEmail);
+
       await transporter.sendMail({
         from: EMAIL_FROM,
         to: parsed.customerEmail,
         subject: `Payment link for order ${parsed.orderNumber}`,
         html,
       });
+    } else {
+      console.log('Missing email or payment link, email not sent.');
     }
 
     return res.status(200).json({
@@ -213,16 +242,12 @@ app.post('/shopify-order', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error:', err.message, err.response && err.response.data);
+    console.error('Error in /shopify-order:', err.message, err.response && err.response.data);
     return res.status(500).json({ ok: false, error: 'internal-error' });
   }
 });
 
-// Health check
-app.get('/', (req, res) => {
-  res.send('Bongs Paragon paylink service running.');
-});
-
+// Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
