@@ -34,35 +34,32 @@ const BONGS_REDIRECT_URL =
 const BONGS_WEBHOOK_URL  =
   process.env.BONGS_WEBHOOK_URL  || 'https://bongs.co.uk/paragon-callback';
 
-// SMTP / Gmail
-const EMAIL_FROM  = process.env.EMAIL_FROM;
-const EMAIL_USER  = process.env.EMAIL_USER;
-const EMAIL_PASS  = process.env.EMAIL_PASS;
+// SMTP / Brevo
+// In Railway set:
+// SMTP_HOST = smtp-relay.brevo.com
+// SMTP_PORT = 587
+// SMTP_USER = 7da87a001@smtp-brevo.com
+// SMTP_PASS = <your Brevo SMTP key>
+// SMTP_FROM = "Bongs <hello@bongs.co.uk>"
+const EMAIL_FROM = process.env.SMTP_FROM || 'Bongs <hello@bongs.co.uk>';
 
-SMTP_HOST = smtp-relay.brevo.com
-SMTP_PORT = 587
-SMTP_USER = YOUR_BREVO_SMTP_USER
-SMTP_PASS = YOUR_BREVO_SMTP_KEY
-SMTP_FROM = hello@bongs.co.uk
-  
 console.log('Startup env check:', {
   PARAGON_ENDPOINT,
   hasParagonControl: !!PARAGON_CONTROL,
   BONGS_REDIRECT_URL,
   BONGS_WEBHOOK_URL,
-  hasEmailUser: !!EMAIL_USER,
+  hasSmtpUser: !!process.env.SMTP_USER,
 });
 
-const nodemailer = require('nodemailer');
-
+// Brevo transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  secure: false,
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: false, // Brevo upgrades to TLS automatically
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
-  }
+  },
 });
 
 // ───────────────────────────────────────────────
@@ -148,7 +145,7 @@ function buildParagonRequestFromShopify(order) {
       state: '',
       zipCode: postcodeLine,
       country: countryCode,
-      phone, // ✅ now correctly defined and sent
+      phone,
     },
     technicalDetails: {
       ipaddress: '1.2.3.4',
@@ -238,7 +235,6 @@ app.post('/shopify-order', async (req, res) => {
 
     console.log('Sending request to Paragon:', requestUrl);
 
-    // send the exact bodyString we signed
     const paragonResp = await axios.post(
       requestUrl,
       bodyString,
