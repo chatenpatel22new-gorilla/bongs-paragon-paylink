@@ -110,14 +110,7 @@ function buildParagonRequestFromShopify(order) {
   const postcodeLine  = shipping.zip || '';
   const countryCode   = (shipping.country_code || 'GB').toUpperCase();
   const customerEmail = order.email || customer.email || '';
-  const rawPhone =
-    shipping.phone ||
-    customer.phone ||
-    order.phone ||
-    (customer.default_address && customer.default_address.phone) ||
-    '';
 
-  
   const paragonOrder = {
     clientOrderId: '',
     amount,
@@ -131,11 +124,6 @@ function buildParagonRequestFromShopify(order) {
       state: '',
       zipCode: postcodeLine,
       country: countryCode,
-      phone,                      // 🔹 use real phone now
-
-
-  // Fibonatix like E.164-ish. If nothing, send a safe dummy UK mobile.
-  const phone = rawPhone.toString().trim() || '+447000000000';
     },
     technicalDetails: {
       ipaddress: '1.2.3.4',
@@ -281,7 +269,7 @@ app.post('/shopify-order', async (req, res) => {
       err.message,
       err.response && err.response.status,
       err.response && err.response.data
-    );
+    ); 
     return res.status(500).json({ ok: false, error: 'internal-error' });
   }
 });
