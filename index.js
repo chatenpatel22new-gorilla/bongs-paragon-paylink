@@ -47,7 +47,7 @@ console.log('Startup env check:', {
   hasEmailUser: !!EMAIL_USER,
 });
 
-// Transporter
+// Mail transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -70,8 +70,12 @@ function buildParagonRequestFromShopify(order) {
     /card payments?/i.test(g) || /card/i.test(g)
   );
 
-  if (!isCard) return null;
+  if (!isCard) {
+    console.log('Not a card payment, skipping.');
+    return null;
+  }
 
+  // Order number
   let orderNumber =
     order.name ||
     (order.order_number != null ? String(order.order_number) : '');
@@ -80,6 +84,7 @@ function buildParagonRequestFromShopify(order) {
     orderNumber = 'no-order-' + Date.now();
   }
 
+  // Amount
   let amountRaw =
     order.total_price ||
     order.current_total_price ||
@@ -111,6 +116,16 @@ function buildParagonRequestFromShopify(order) {
   const countryCode   = (shipping.country_code || 'GB').toUpperCase();
   const customerEmail = order.email || customer.email || '';
 
+  // Phone: try everything Shopify gives us, fall back to dummy UK mobile
+  const rawPhone =
+    shipping.phone ||
+    customer.phone ||
+    order.phone ||
+    (customer.default_address && customer.default_address.phone) ||
+    '';
+
+  const phone = (rawPhone && rawPhone.toString().trim()) || '+447000000000';
+
   const paragonOrder = {
     clientOrderId: '',
     amount,
@@ -124,6 +139,7 @@ function buildParagonRequestFromShopify(order) {
       state: '',
       zipCode: postcodeLine,
       country: countryCode,
+      phone, // ✅ now correctly defined and sent
     },
     technicalDetails: {
       ipaddress: '1.2.3.4',
@@ -143,7 +159,7 @@ function buildParagonRequestFromShopify(order) {
   paragonOrder.clientOrderId = clientOrderId;
   paragonOrder.orderDescription = `Bongs order #${clientOrderId}`;
 
-  // IMPORTANT: bodyString is what we sign AND send
+  // bodyString is what we sign AND send
   const bodyString = JSON.stringify(paragonOrder);
   const requestUrl = `${PARAGON_API_BASE}/v4/${PARAGON_ENDPOINT}/form/${PARAGON_METHOD}`;
 
@@ -166,6 +182,7 @@ function buildParagonRequestFromShopify(order) {
       cityLine,
       postcodeLine,
       countryCode,
+      phone,
     },
   };
 }
@@ -212,7 +229,7 @@ app.post('/shopify-order', async (req, res) => {
 
     console.log('Sending request to Paragon:', requestUrl);
 
-    // IMPORTANT: send the exact bodyString we signed
+    // send the exact bodyString we signed
     const paragonResp = await axios.post(
       requestUrl,
       bodyString,
@@ -269,7 +286,7 @@ app.post('/shopify-order', async (req, res) => {
       err.message,
       err.response && err.response.status,
       err.response && err.response.data
-    ); 
+    );
     return res.status(500).json({ ok: false, error: 'internal-error' });
   }
 });
