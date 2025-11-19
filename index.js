@@ -39,6 +39,12 @@ const EMAIL_FROM  = process.env.EMAIL_FROM;
 const EMAIL_USER  = process.env.EMAIL_USER;
 const EMAIL_PASS  = process.env.EMAIL_PASS;
 
+SMTP_HOST = smtp-relay.brevo.com
+SMTP_PORT = 587
+SMTP_USER = YOUR_BREVO_SMTP_USER
+SMTP_PASS = YOUR_BREVO_SMTP_KEY
+SMTP_FROM = hello@bongs.co.uk
+  
 console.log('Startup env check:', {
   PARAGON_ENDPOINT,
   hasParagonControl: !!PARAGON_CONTROL,
@@ -47,13 +53,16 @@ console.log('Startup env check:', {
   hasEmailUser: !!EMAIL_USER,
 });
 
-// Mail transporter
+const nodemailer = require('nodemailer');
+
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: false,
   auth: {
-    user: EMAIL_USER,
-    pass: EMAIL_PASS,
-  },
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  }
 });
 
 // ───────────────────────────────────────────────
