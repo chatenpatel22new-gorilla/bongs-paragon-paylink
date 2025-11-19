@@ -189,6 +189,7 @@ function buildParagonRequestFromShopify(order) {
       postcodeLine,
       countryCode,
       phone,
+      clientOrderId, // so we can use it in the email template
     },
   };
 }
@@ -252,19 +253,41 @@ app.post('/shopify-order', async (req, res) => {
     console.log('Paragon response:', pData);
 
     if (parsed.customerEmail && paymentLink) {
+      // Email body matching old n8n template
       const html = `
         <p><strong>Gorilla Bongs – Payment Instructions</strong></p>
-        <p>Hi ${parsed.customerName || 'there'},</p>
-        <p>Thanks for your order <strong>${parsed.orderNumber}</strong>.</p>
-        <p>Please use the secure link below to complete your card payment:</p>
-        <p><a href="${paymentLink}">${paymentLink}</a></p>
-        <p>Amount: £${parsed.amount}</p>
+
+        <p>Hi ${parsed.customerName || 'there'}.</p>
+
         <p>
-          ${parsed.addressLine}<br>
-          ${parsed.cityLine} ${parsed.postcodeLine}<br>
-          ${parsed.countryCode}
+          To pay <strong>£${parsed.amount}</strong> for order
+          <strong>${parsed.orderNumber}</strong> (${parsed.clientOrderId}),<br>
+          please use this link:
+          <a href="${paymentLink}" target="_blank">Payment Link</a>
         </p>
-        <p>Cheers,<br>Gorilla Bongs</p>
+
+        <p>
+          Requires card to be registered by 3D Secure / Verified by Visa scheme.<br>
+        </p>
+
+        <p>You can also make a payment into our bank account using the following details:</p>
+
+        <p><strong>Account Details:</strong><br>
+        Account Name: Chaten Patel<br>
+        Account Type: Personal<br>
+        Account Number: 96100005<br>
+        Sort Code: 09-01-28<br>
+        REF: ${parsed.clientOrderId} (or order ${parsed.orderNumber})
+        </p>
+
+        <p>
+          As soon as you have made the transfer please notify us by email confirming.<br>
+          Please use your Order number provided above on all references on your Bank Transfer.
+          Failure to do this will cause a delay in processing your order.
+        </p>
+
+        <p>Thanks,<br>
+        Gorilla Bongs</p>
       `;
 
       console.log('Sending email to', parsed.customerEmail);
